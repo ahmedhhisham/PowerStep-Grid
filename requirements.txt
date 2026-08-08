@@ -1,0 +1,15 @@
+paho-mqtt
+pandas
+numpy
+scipy
+scikit-learn
+tensorflow
+joblib
+streamlit
+streamlit-autorefresh
+plotly
+matplotlib
+seaborn
+qrcode
+requests
+pyarrow
