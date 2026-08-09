@@ -1,10 +1,6 @@
 /*
   ============================================================================
   esp32_main.ino
-  الفيرموير النهائي المدمج لعقدة PowerStep
-
-  يجمع هذا الملف بين الاختبارات المنفردة الأربعة (القسم 2.3 من خارطة الطريق)
-  في نظام واحد متكامل
 
   المكتبات المطلوبة (Arduino IDE > Library Manager):
     - PubSubClient   by Nick O'Leary
@@ -23,8 +19,7 @@
 #include <time.h>
 #include <math.h>
 
-// ---------------------- تفعيل/تعطيل الوظائف حسب دور القطعة -------------------
-// اجعل القيمة 0 لتعطيل الوظيفة على قطعة مخصصة لدور واحد فقط (راجع BOM القسم 2.1)
+// ---------------------- تفعيل/تعطيل الوظائف حسب دور القطعة --------------------
 #define ENABLE_ENERGY_HARVESTING 1   // 0 على عقدة RSSI المستقلة
 #define ENABLE_OCCUPANCY_SENSING 1   // 0 على عقدة الطاقة المستقلة
 #define ENABLE_CURRENT_SENSOR    0   // 1 فقط لو ACS712 موصول فعليًا
@@ -32,7 +27,7 @@
 // ------------------------------ إعدادات الشبكة ------------------------------
 const char* WIFI_SSID     = "YOUR_WIFI_SSID";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
-const char* MQTT_BROKER   = "192.168.1.100";   // نفس IP المستخدم في test_mqtt_connection.ino
+const char* MQTT_BROKER   = "192.168.1.100";  
 const int   MQTT_PORT     = 1883;
 
 const char* TILE_ID = "tile_1";            // يطابق TILE_IDS في simulate_sensors.py
@@ -45,20 +40,19 @@ const char*  TOPIC_RELAY_CMD = "actuators/relay/corridor_light/cmd";
 const char*  TOPIC_ALERTS    = "alerts/system";
 
 // ---------------------------- تعريف الأطراف (Pinout) ------------------------
-// مطابقة لجدول التوصيل في القسم 2.2 من خارطة الطريق
-const int PIEZO_PIN  = 34;   // ADC1_CH6 — جهد وحدة التخزين بعد مقسّم جهد 2:1
-const int ACS712_PIN = 35;   // ADC1_CH7 — حساس التيار (اختياري)
-const int RELAY_PIN  = 26;   // التحكم في حمل الإضاءة
-const int BUZZER_PIN = 27;   // بازر الإنذار المحلي
-const int STATUS_LED = 2;    // مؤشر حالة الاتصال (مدمج غالبًا في اللوحة)
+const int PIEZO_PIN  = 34;  
+const int ACS712_PIN = 35;  
+const int RELAY_PIN  = 26;   
+const int BUZZER_PIN = 27;
+const int STATUS_LED = 2;    
 
 // -------------------------- ثوابت المعايرة (حدّثها بعد القياس الفعلي) --------
-const float STEP_DETECT_THRESHOLD_V  = 1.2;    // فولت — أي جهد فوقه يُحسب "خطوة"
-const unsigned long STEP_DEBOUNCE_MS = 150;    // منع عدّ نفس الخطوة أكثر من مرة
-const float ENERGY_WH_PER_STEP       = 0.0006; // منتصف مدى 2-8 جول/خطوة بعد التحويل لـ Wh
-const float ACS712_SENSITIVITY_V_PER_A = 0.100;// مثال لموديول 20A — عدّلها حسب موديولك
-const float ACS712_ZERO_OFFSET_V     = 1.65;   // تقريبًا نصف جهد التغذية عند تيار صفر
-const float BUS_VOLTAGE_V            = 12.0;   // جهد الدائرة المُقاس عليه الاستهلاك
+const float STEP_DETECT_THRESHOLD_V  = 1.2;   
+const unsigned long STEP_DEBOUNCE_MS = 150;   
+const float ENERGY_WH_PER_STEP       = 0.0006; 
+const float ACS712_SENSITIVITY_V_PER_A = 0.100;  
+const float ACS712_ZERO_OFFSET_V     = 1.65;
+const float BUS_VOLTAGE_V            = 12.0;   
 
 const unsigned long PUBLISH_INTERVAL_MS = 5000; // نفس فترة النشر في simulate_sensors.py
 
@@ -104,7 +98,6 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
     digitalWrite(RELAY_PIN, msg == "ON" ? HIGH : LOW);
     Serial.println("[RELAY] " + msg);
   } else if (t == TOPIC_ALERTS) {
-    // نفس منطق alarm_listener.ino: البازر يعمل فقط عند severity=high
     if (msg.indexOf("\"severity\":\"high\"") >= 0) {
       Serial.println("[ALERT] تنبيه حرج — تشغيل البازر");
       digitalWrite(BUZZER_PIN, HIGH);
@@ -136,10 +129,9 @@ void connectMqtt() {
 }
 
 // ------------------------- حصاد الطاقة: عدّ الخطوات لحظيًا -------------------
-// يُستدعى في كل دورة loop() حتى لا تُفوَّت أي خطوة سريعة بين فترات النشر
 void sampleEnergyHarvesting() {
   int raw = analogRead(PIEZO_PIN);
-  float voltage = (raw / 4095.0) * 3.3 * 2.0;   // *2 لتعويض مقسّم الجهد (كـ test_piezo_adc.ino)
+  float voltage = (raw / 4095.0) * 3.3 * 2.0;  
 
   unsigned long now = millis();
   if (voltage >= STEP_DETECT_THRESHOLD_V && (now - lastStepTime) > STEP_DEBOUNCE_MS) {
@@ -172,12 +164,12 @@ void publishEnergyTelemetry() {
   serializeJson(doc, buffer, sizeof(buffer));
   mqttClient.publish(TOPIC_ENERGY.c_str(), buffer);
 
-  stepCount = 0;   // تصفير العدّاد لبدء نافذة القياس التالية
+  stepCount = 0;   
 }
 
 // --------------------------- استشعار الإشغال عبر RSSI ------------------------
 void publishOccupancyTelemetry() {
-  long rssi = WiFi.RSSI();   // قوة إشارة نقطة الوصول المتصل بها العقدة حاليًا
+  long rssi = WiFi.RSSI();  
 
   StaticJsonDocument<160> doc;
   doc["node_id"] = NODE_ID;
@@ -197,7 +189,7 @@ void setup() {
   pinMode(STATUS_LED, OUTPUT);
   digitalWrite(RELAY_PIN, LOW);
   digitalWrite(BUZZER_PIN, LOW);
-  analogReadResolution(12);   // 0-4095
+  analogReadResolution(12);   
 
   connectWiFi();
   connectMqtt();
